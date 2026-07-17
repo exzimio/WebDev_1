@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const app = express();
 
 // Middleware
@@ -112,33 +113,23 @@ function traduzir(lang, chave) {
   return traducoes[lang] && traducoes[lang][chave] ? traducoes[lang][chave] : chave;
 }
 
-// Helper para renderizar template
-function renderTemplate(filePath, locals) {
-  let html = require('fs').readFileSync(filePath, 'utf8');
-  Object.keys(locals).forEach(key => {
-    html = html.replace(new RegExp(`{{\\s*${key}\\s*}}`, 'g'), locals[key]);
-  });
-  return html;
-}
-
 // Rota HOME
 app.get(['/', '/index.html', '/index.php'], (req, res) => {
   const lang = req.query.lang || 'pt';
   const baseURL = '/';
   
   try {
-    let headerHtml = require('fs').readFileSync(path.join(__dirname, 'mega_pizza/components/header.php'), 'utf8');
-    let homeHtml = require('fs').readFileSync(path.join(__dirname, 'mega_pizza/views/home.php'), 'utf8');
-    let footerHtml = require('fs').readFileSync(path.join(__dirname, 'mega_pizza/components/footer.php'), 'utf8');
+    let headerHtml = fs.readFileSync(path.join(__dirname, 'mega_pizza/components/header.php'), 'utf8');
+    let homeHtml = fs.readFileSync(path.join(__dirname, 'mega_pizza/views/home.php'), 'utf8');
+    let footerHtml = fs.readFileSync(path.join(__dirname, 'mega_pizza/components/footer.php'), 'utf8');
 
-    // Converter PHP para HTML substituindo variáveis
     const html = headerHtml + homeHtml + footerHtml;
     
     let rendered = html
       .replace(/\<\?=\s*BASE_URL\s*\?\>/g, baseURL)
       .replace(/\<\?=\s*\$lang\s*\?\>/g, lang)
       .replace(/\<\?=\s*traduzir\('([^']+)'\)\s*\?\>/g, (match, key) => traduzir(lang, key))
-      .replace(/\<\?php[\s\S]*?\?\>/g, '') // Remove PHP tags
+      .replace(/\<\?php[\s\S]*?\?\>/g, '')
       .replace(/\<\?=[\s\S]*?\?\>/g, (match) => {
         const content = match.replace(/\<\?=\s*|\s*\?\>/g, '');
         return traduzir(lang, content);
@@ -146,20 +137,20 @@ app.get(['/', '/index.html', '/index.php'], (req, res) => {
 
     res.send(rendered);
   } catch (err) {
-    console.error(err);
+    console.error('Erro ao carregar home:', err);
     res.status(500).send('Erro ao carregar página');
   }
 });
 
 // Rota CONTACTOS
-app.get(['/contactos.php', '/contactos'], (req, res) => {
+app.get(['/contactos.php', '/contactos', '/contactos.html'], (req, res) => {
   const lang = req.query.lang || 'pt';
   const baseURL = '/';
   
   try {
-    let headerHtml = require('fs').readFileSync(path.join(__dirname, 'mega_pizza/components/header.php'), 'utf8');
-    let contactHtml = require('fs').readFileSync(path.join(__dirname, 'mega_pizza/views/contactos.php'), 'utf8');
-    let footerHtml = require('fs').readFileSync(path.join(__dirname, 'mega_pizza/components/footer.php'), 'utf8');
+    let headerHtml = fs.readFileSync(path.join(__dirname, 'mega_pizza/components/header.php'), 'utf8');
+    let contactHtml = fs.readFileSync(path.join(__dirname, 'mega_pizza/views/contactos.php'), 'utf8');
+    let footerHtml = fs.readFileSync(path.join(__dirname, 'mega_pizza/components/footer.php'), 'utf8');
 
     const html = headerHtml + contactHtml + footerHtml;
     
@@ -175,7 +166,7 @@ app.get(['/contactos.php', '/contactos'], (req, res) => {
 
     res.send(rendered);
   } catch (err) {
-    console.error(err);
+    console.error('Erro ao carregar contactos:', err);
     res.status(500).send('Erro ao carregar página');
   }
 });
@@ -183,7 +174,6 @@ app.get(['/contactos.php', '/contactos'], (req, res) => {
 // Rota para formulário de contacto
 app.post('/api/contacto', (req, res) => {
   const { nome, email, mensagem } = req.body;
-  // Aqui você pode adicionar lógica para enviar email ou salvar em BD
   console.log('Mensagem recebida:', { nome, email, mensagem });
   res.json({ sucesso: true, mensagem: 'Obrigado! A sua mensagem foi recebida.' });
 });
@@ -191,13 +181,18 @@ app.post('/api/contacto', (req, res) => {
 // Servir CSS, JS e imagens
 app.use('/public', express.static(path.join(__dirname, 'mega_pizza/public')));
 
-// 404
+// 404 - Catch all, redireciona para home
 app.use((req, res) => {
-  res.status(404).send('<h1>404 - Página não encontrada</h1>');
+  res.status(404).sendFile(path.join(__dirname, 'mega_pizza/components/header.php'), (err) => {
+    if (err) {
+      res.send('<h1>404 - Página não encontrada</h1><p><a href="/">Voltar ao Home</a></p>');
+    }
+  });
 });
 
 // Iniciar servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🍕 Mega Pizza rodando em http://localhost:${PORT}`);
+  console.log(`🍕 Mega Pizza rodando em porta ${PORT}`);
+  console.log(`http://localhost:${PORT}`);
 });
